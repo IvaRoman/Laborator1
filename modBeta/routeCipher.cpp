@@ -1,67 +1,90 @@
 #include "routeCipher.h"
 #include <stdexcept>
 #include <algorithm>
+#include <iostream>
+#include <vector>
 
 // Конструктор: инициализация ключа
 RouteCipher::RouteCipher(int key)
 {
-    columns = getValidKey(key);  // Валидируем и сохраняем ключ
+    columns = getValidKey(key);
 }
 
 // Метод шифрования
 std::string RouteCipher::encrypt(const std::string& text)
 {
     std::string validText = getValidText(text);
-    size_t rows = (validText.size() + columns - 1) / columns;
-    size_t total_cells = rows * columns;
+    int original_length = validText.size();
+    int rows = (original_length + columns - 1) / columns;
+    int total_cells = rows * columns;
 
-    validText.resize(total_cells, 'X');
+    // Создаем таблицу и заполняем ее по строкам
+    std::vector<std::vector<char>> table(rows, std::vector<char>(columns, ' '));
+    int index = 0;
     
-    std::vector<std::vector<char>> table(rows, std::vector<char>(columns));
-    
-    size_t index = 0;
-    for (size_t i = 0; i < rows; i++) {
+    for (int i = 0; i < rows; i++) {
         for (int j = 0; j < columns; j++) {
-            table[i][j] = validText[index++];
+            if (index < original_length) {
+                table[i][j] = validText[index++];
+            }
+            // Оставляем пустые ячейки пустыми
         }
     }
 
+    // Читаем по столбцам справа налево, сверху вниз
     std::string result;
     for (int j = columns - 1; j >= 0; j--) {
-        for (size_t i = 0; i < rows; i++) {
-            result += table[i][j];
+        for (int i = 0; i < rows; i++) {
+            if (table[i][j] != ' ') { // Читаем только заполненные ячейки
+                result += table[i][j];
+            }
         }
     }
+    
     return result;
 }
 
 // Метод дешифрования
 std::string RouteCipher::decrypt(const std::string& text)
 {
-    // Валидируем текст
     std::string validText = getValidText(text);
+    int encrypted_length = validText.size();
+    int rows = (encrypted_length + columns - 1) / columns;
     
-    // Вычисляем количество строк
-    int rows = (validText.size() + columns - 1) / columns;
+    // Восстанавливаем оригинальную длину текста
+    int original_length = encrypted_length; // Начинаем с предположения
     
-    // Создаем таблицу
+    // Создаем таблицу для дешифрования
     std::vector<std::vector<char>> table(rows, std::vector<char>(columns, ' '));
-
-    // Заполняем таблицу по столбцам сверху вниз, справа налево
-    int index = 0;
-    for (int j = columns - 1; j >= 0; j--) {        // Столбцы справа налево
-        for (int i = 0; i < rows; i++) {            // Строки сверху вниз
-            if (index < validText.size()) {
-                table[i][j] = validText[index++];
+    
+    // Сначала определяем, какие ячейки были заполнены в оригинальной таблице
+    std::vector<std::vector<bool>> filled(rows, std::vector<bool>(columns, false));
+    int original_index = 0;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < columns; j++) {
+            if (original_index < original_length) {
+                filled[i][j] = true;
+                original_index++;
+            }
+        }
+    }
+    
+    // Заполняем таблицу по столбцам справа налево, сверху вниз
+    // ТОЛЬКО в те ячейки, которые были заполнены в оригинале
+    int encrypted_index = 0;
+    for (int j = columns - 1; j >= 0; j--) {
+        for (int i = 0; i < rows; i++) {
+            if (filled[i][j] && encrypted_index < encrypted_length) {
+                table[i][j] = validText[encrypted_index++];
             }
         }
     }
 
     // Читаем таблицу по строкам слева направо, сверху вниз
     std::string result;
-    for (int i = 0; i < rows; i++) {                // Строки сверху вниз
-        for (int j = 0; j < columns; j++) {         // Столбцы слева направо
-            if (table[i][j] != ' ') {               // Пропускаем пустые ячейки
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < columns; j++) {
+            if (filled[i][j]) {
                 result += table[i][j];
             }
         }
@@ -73,7 +96,6 @@ std::string RouteCipher::decrypt(const std::string& text)
 // Валидация ключа
 int RouteCipher::getValidKey(int key)
 {
-    // Ключ должен быть положительным числом
     if (key <= 0) {
         throw std::invalid_argument("Ключ должен быть положительным");
     }
@@ -83,22 +105,18 @@ int RouteCipher::getValidKey(int key)
 // Валидация текста
 std::string RouteCipher::getValidText(const std::string& text)
 {
-    // Проверка на пустой текст
     if (text.empty()) {
         throw std::invalid_argument("Текст пуст");
     }
     
     std::string result;
     
-    // Обрабатываем каждый символ текста
     for (char c : text) {
-        // Оставляем только буквы, преобразуем в верхний регистр
         if (isalpha(c)) {
             result += toupper(c);
         }
     }
     
-    // Проверка, что остались буквы после обработки
     if (result.empty()) {
         throw std::invalid_argument("Текст не содержит букв");
     }
